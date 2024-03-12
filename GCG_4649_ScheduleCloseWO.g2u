@@ -1,0 +1,267 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+'
+f.Intrinsic.Control.If(v.Caller.Hook,=,"38130")
+	f.Intrinsic.UI.InvokeWaitDialog("Processing...")
+	f.Intrinsic.Control.CallSub(online_update)
+f.Intrinsic.Control.EndIf 
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4649_ScheduleCloseWO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Main.End
+
+Program.Sub.online_update.Start
+F.Intrinsic.Control.SetErrorHandler("online_update_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+
+Function.ODBC.Connection!con.OpenConnection(Variable.Ambient.PDSN,Variable.Ambient.PUser,Variable.Ambient.PPass)
+
+f.Intrinsic.UI.InvokeWaitDialog("Processing...")
+f.Intrinsic.Control.CallSub(create_wo)
+
+f.Intrinsic.Control.CallSub(close_wo)
+
+f.Intrinsic.Control.CallSub(Remove_WO)
+
+f.Intrinsic.UI.CloseWaitDialog 
+
+f.ODBC.Connection!con.Close 
+
+'f.Intrinsic.Control.End 
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("online_update_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	f.Intrinsic.UI.CloseWaitDialog 
+	Function.Intrinsic.String.Concat("Project: GCG_4649_ScheduleCloseWO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.online_update.End
+
+Program.Sub.Create_WO.Start
+F.Intrinsic.Control.SetErrorHandler("Create_WO_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSQL.Declare(String)
+V.Local.sLine.Declare(String)
+V.Local.sData.Declare(String)
+V.Local.i.Declare(long)
+
+V.Local.sPart_F.Declare(String)
+V.Local.sRev_F.Declare(String)
+V.Local.sLoc.Declare(String)
+V.Local.sDueDT.Declare(string)
+V.Local.fQty.Declare(long)
+V.Local.sRet.Declare(String)
+V.Local.sfile.Declare(String)
+v.Local.IREQID.Declare(long)
+
+'Create WO
+V.Local.sSQL.set("select REQUEST_ID,ROUTER,LOCATION,ORDER_QTY,DATE_DUE,JOB,Suffix,REQ_STATUS,USER_1,USER_2,USER_3 from GCG_4649_WO_CREATE where REQ_STATUS = 'R' order by REQUEST_ID") 
+
+f.Data.DataTable.CreateFromSQL("DTWO","con",v.local.ssql)
+
+f.Intrinsic.Control.If(v.DataTable.DTWO.rowcount,>,0)
+
+'210900*!**!**!*10/03/2017*!*2'
+
+
+	f.Intrinsic.Control.For(v.Local.i,0,v.DataTable.DTWO.rowcount--,1)
+
+'		f.Intrinsic.UI.ChangeWaitStatus("Generating WO",v.Local.i,1,v.DataTable.DTWO.rowcount)
+		f.Intrinsic.UI.ChangeWaitStatus("Generating WO")
+
+		V.Local.sRet.Set(v.DataTable.DTWO(v.Local.i).ROUTER.fieldvaltrim)
+
+		f.Intrinsic.String.Mid(V.Local.sRet,1,17,V.Local.sPart_F)
+		f.Intrinsic.String.Mid(V.Local.sRet,18,20,V.Local.sRev_F)
+
+		V.Local.sLoc.Set(v.DataTable.DTWO(v.Local.i).LOCATION.fieldval)
+
+		f.Intrinsic.String.Format(v.DataTable.DTWO(v.Local.i).DATE_DUE.fieldval,"mm/dd/yyyy",V.Local.sDueDT)
+
+		V.Local.fQty.Set(v.DataTable.DTWO(v.Local.i).ORDER_QTY.fieldval)
+
+		f.Intrinsic.String.Build("{0}*!*{1}*!*{2}*!*{3}*!*{4}",V.Local.sPart_F,V.Local.sRev_F,V.Local.sLoc,V.Local.sDueDT,V.Local.fQty,V.Local.sLine)
+
+		f.Intrinsic.Control.If(V.Local.sData,=,"")
+			V.Local.sData.Set(V.Local.sLine)
+		f.Intrinsic.Control.Else
+			f.Intrinsic.String.Build("{0}{1}{2}",V.Local.sData,v.Ambient.NewLine,V.Local.sLine,V.Local.sData)
+		f.Intrinsic.Control.EndIf 
+
+	f.Intrinsic.Control.Next(v.Local.i)
+
+
+	f.Intrinsic.Control.If(V.Local.sData,<>,"")
+		f.Intrinsic.String.Build("{0}\WO_4649.txt",v.Caller.LocalGSSTempDir,V.Local.sfile)
+		Function.Intrinsic.File.String2File(V.Local.sfile,V.Local.sData)
+
+		F.Global.Callwrapper.New("GenFG","Manufacturing.CreateWorkOrderFinishedGoodPart")
+		F.Global.Callwrapper.SetProperty("GenFG","FileName",V.Local.sfile)
+		F.Global.CallWrapper.Run("GenFG")
+		F.Global.CallWrapper.GetProperty("GenFG","ReturnCode",V.Local.sRet)
+
+		F.Intrinsic.File.File2String(V.Local.sfile,V.Local.sdata)
+		Function.Data.DataTable.CreateFromString("DTOut", V.Local.sdata,"Part*!*REV*!*loc*!*Status*!*WO*!*Sufix","string*!*string*!*string*!*string*!*string*!*string","*!*",v.ambient.newline)
+
+		v.Local.lcnt.Declare(long)
+		f.Intrinsic.Math.Sub(v.DataTable.DTOut.rowcount,1,v.Local.lcnt)
+
+		Function.Data.DataTable.DeleteRow("DTOut",v.Local.lcnt)
+
+		f.Intrinsic.Control.For(v.Local.i,0,v.DataTable.DTOut.rowcount--,1)
+			v.Local.IREQID.Set(v.DataTable.DTWO(v.Local.i).REQUEST_ID.fieldvaltrim)
+
+'			f.Intrinsic.UI.ChangeWaitStatus("Updating WO",v.Local.i,1,v.DataTable.DTOut.rowcount)
+			f.Intrinsic.UI.ChangeWaitStatus("Updating WO")
+
+			f.Intrinsic.Control.If(v.DataTable.DTOut(v.Local.i).Status.fieldvaltrim,=,"Y")
+				f.Intrinsic.Control.If(v.DataTable.DTOut(v.Local.i).Sufix.fieldvaltrim,<>,"")
+					'BOM Parent will have multile WO
+					'select job,suffix from v_job_header where job = v.DataTable.DTWO(v.Local.i).Status.fieldvaltrim
+					F.Data.DataTable.SetValue("DTWO",V.Local.i,"Job",v.DataTable.DTOut(v.Local.i).WO.fieldvaltrim)
+					F.Data.DataTable.SetValue("DTWO",V.Local.i,"Suffix",v.DataTable.DTOut(v.Local.i).Sufix.fieldvaltrim)
+				f.Intrinsic.control.else
+					F.Data.DataTable.SetValue("DTWO",V.Local.i,"Job",v.DataTable.DTOut(v.Local.i).WO.fieldvaltrim)
+					F.Data.DataTable.SetValue("DTWO",V.Local.i,"Suffix","")
+				f.Intrinsic.Control.EndIf 
+				F.Data.DataTable.SetValue("DTWO",V.Local.i,"REQ_STATUS","P")
+			f.Intrinsic.control.else
+				'Error
+				F.Data.DataTable.SetValue("DTWO",V.Local.i,"REQ_STATUS","E")
+				F.Data.DataTable.SetValue("DTWO",V.Local.i,"Job","")
+				F.Data.DataTable.SetValue("DTWO",V.Local.i,"Suffix","")
+			f.Intrinsic.Control.EndIf 
+
+		f.Intrinsic.Control.Next(v.Local.i)
+		F.Data.DataTable.SaveToDB("DTWO","con","GCG_4649_WO_CREATE","REQUEST_ID",256,"REQUEST_ID@!@REQUEST_ID*!*JOB@!@JOB*!*Suffix@!@Suffix*!*REQ_STATUS@!@REQ_STATUS")
+
+		F.Data.DataTable.SaveToDB("DTWO","con","WO_USER_FLDS","JOB*!*Suffix",256,"JOB@!@JOB*!*Suffix@!@Suffix*!*User_1@!@User_1*!*User_2@!@User_2*!*User_3@!@User_3")
+		f.Data.DataTable.Close("DTOut")
+	f.Intrinsic.Control.EndIf 
+
+	f.Data.DataTable.Close("DTWO")
+f.Intrinsic.Control.EndIf 
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Create_WO_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	f.Intrinsic.UI.CloseWaitDialog 
+	Function.Intrinsic.String.Concat("Project: GCG_4649_ScheduleCloseWO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Create_WO.End
+
+Program.Sub.Close_WO.Start
+F.Intrinsic.Control.SetErrorHandler("Close_WO_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSQL.Declare(String)
+v.Local.i.Declare(long)
+v.Local.sDate.Declare(String)
+V.Local.sRet.Declare(String)
+V.Local.sJob.Declare(String)
+V.Local.sSuffix.Declare(String)
+
+
+'comany options - advanced - manufacturing - miscellaneous manufacturing options - close all operations when work ordder is closed
+
+''Close WO
+V.Local.sSQL.set("select REQUEST_ID,JOB,SUFFIX,REQ_STATUS from GCG_4649_WO_CLOSE where REQ_STATUS = 'R'") 
+f.Data.DataTable.CreateFromSQL("DTWO","con",v.local.ssql)
+
+f.Intrinsic.Control.For(v.Local.i,0,v.DataTable.DTWO.rowcount--,1)
+
+	f.Intrinsic.UI.ChangeWaitStatus("Closing WO",v.Local.i,1,v.DataTable.DTWO.rowcount)
+	F.Global.Callwrapper.New("CloseWO","Manufacturing.CloseWorkOrder")
+	F.Global.Callwrapper.SetProperty("CloseWO","BeginningWorkOrder",v.DataTable.DTWO(v.Local.i).Job.fieldvaltrim)
+	F.Global.Callwrapper.SetProperty("CloseWO","BeginningWorkOrderSuffix",v.DataTable.DTWO(v.Local.i).Suffix.fieldvaltrim)
+	f.Intrinsic.String.Format(v.Ambient.Date,"YYYYMMDD",v.Local.sDate)
+	F.Global.Callwrapper.SetProperty("CloseWO","CloseDate",v.Local.sDate)
+	F.Global.CallWrapper.Run("CloseWO")
+
+	F.Data.DataTable.SetValue("DTWO",V.Local.i,"REQ_STATUS","P")
+
+f.Intrinsic.Control.Next(v.Local.i)
+
+f.Intrinsic.Control.If(v.DataTable.DTWO.rowcount,>,0)
+	F.Data.DataTable.SaveToDB("DTWO","con","GCG_4649_WO_CLOSE","REQUEST_ID",256,"REQUEST_ID@!@REQUEST_ID*!*REQ_STATUS@!@REQ_STATUS")
+f.Intrinsic.Control.endif
+
+
+
+f.Data.DataTable.Close("DTWO")
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Close_WO_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	f.Intrinsic.UI.CloseWaitDialog 
+	Function.Intrinsic.String.Concat("Project: GCG_4649_ScheduleCloseWO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.Close_WO.End
+
+Program.Sub.Remove_WO.Start
+F.Intrinsic.Control.SetErrorHandler("Remove_WO_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+v.local.ssql.Declare(String)
+
+
+f.Intrinsic.String.Build("delete from GCG_4649_WO_CREATE where REQ_STATUS = '{0}'","C",V.Local.sSql)
+f.ODBC.Connection!con.Execute(v.Local.ssql)
+f.Intrinsic.String.Build("delete from GCG_4649_WO_CLOSE where REQ_STATUS = '{0}'","C",V.Local.sSql)
+f.ODBC.Connection!con.Execute(v.Local.ssql)
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Remove_WO_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4649_ScheduleCloseWO.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Remove_WO.End
+
+Program.Sub.Comments.Start
+${$0$}$GCG_4649_ScheduleCloseWO$}$RAN$}$10/2/2017 1:13:33 PM$}$False
+${$3$}$0$}$$}$0$}$-1$}$$}$12:00:00 AM$}$Project will allow for work orders to be created/closed via GAB Service that will poll & process requests sent from an external program.
+
+Turn on
+comany options - advanced - manufacturing - miscellaneous manufacturing options - close all operations when work ordder is closed
+Program.Sub.Comments.End
